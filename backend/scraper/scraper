@@ -1,0 +1,53 @@
+"""Async web scraper using httpx + BeautifulSoup."""
+from __future__ import annotations
+import asyncio
+import sys, os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+import config
+
+import httpx
+from bs4 import BeautifulSoup
+
+_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (compatible; RAGSearchBot/1.0; "
+        "+https://github.com/your-org/rag-search-app)"
+    )
+}
+
+_REMOVE_TAGS = ["script", "style", "nav", "footer", "header", "aside", "form", "noscript"]
+
+
+def _extract_text(html: str) -> str:
+    soup = BeautifulSoup(html, "lxml")
+    for tag in soup(_REMOVE_TAGS):
+        tag.decompose()
+    return soup.get_text(separator=" ", strip=True)
+
+
+async def _fetch(url: str, client: httpx.AsyncClient) -> tuple[str, str]:
+    try:
+        r = await client.get(url, timeout=10, follow_redirects=True)
+        r.raise_for_status()
+        return url, _extract_text(r.text)
+    except Exception as exc:
+        print(f"[scraper] skip {url}: {exc}")
+        return url, ""
+
+
+async def scrape_urls(
+    urls: list[str],
+    max_workers: int = config.MAX_SCRAPE_WORKERS,
+) -> dict[str, str]:
+    """Return {url: text} for successfully scraped pages."""
+    sem = asyncio.Semaphore(max_workers)
+
+    async def _bounded(url: str, client: httpx.AsyncClient) -> tuple[str, str]:
+        async with sem:
+            return await _fetch(url, client)
+
+    async with httpx.AsyncClient(headers=_HEADERS) as client:
+        tasks = [_bounded(url, client) for url in urls]
+        results = await asyncio.gather(*tasks)
+
+    return {url: text for url, text in results if text.strip()}

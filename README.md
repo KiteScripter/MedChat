@@ -51,7 +51,7 @@ Drugs.com, RxList, FDA, NHS, NICE.
 ## 🚀 Quickstart
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/medchat.git
+git clone https://github.com/kitescripter/medchat.git
 cd medchat
 cp .env.example .env   # add your keys
 cd backend && pip install -r requirements.txt
